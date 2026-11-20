@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vault X — Reset Password</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; margin: 0; background: #101216; color: #e8eaed; line-height: 1.6; }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 20px 64px; }
+  h1 { font-size: 1.8rem; margin-bottom: 0.25rem; }
+  .meta { color: #9aa0a6; }
+  a { color: #8ab4f8; }
+  form { max-width: 420px; margin-top: 1.5rem; }
+  label { display: block; margin-top: 1rem; margin-bottom: 0.25rem; }
+  input { width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 1rem; border-radius: 6px; border: 1px solid #3c4043; background: #1a1d21; color: #e8eaed; }
+  button { margin-top: 1.5rem; width: 100%; padding: 12px; font-size: 1rem; border: 0; border-radius: 6px; background: #8ab4f8; color: #101216; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: 0.6; cursor: default; }
+  .hidden { display: none; }
+  .error { color: #f28b82; }
+  .success { color: #81c995; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Vault X — Reset Password</h1>
+  <p class="meta">Set a new password for your Vault X account.</p>
+
+  <p id="status">Checking your reset link…</p>
+
+  <p id="invalid" class="hidden error">This password reset link is invalid or has expired. Please ask the Vault X app owner to send you a fresh password reset email, then tap the new link.</p>
+
+  <form id="reset-form" class="hidden">
+    <label for="password">New password</label>
+    <input type="password" id="password" autocomplete="new-password" required>
+    <label for="confirm">Confirm new password</label>
+    <input type="password" id="confirm" autocomplete="new-password" required>
+    <p id="form-error" class="error hidden"></p>
+    <button type="submit" id="submit">Set new password</button>
+  </form>
+
+  <p id="done" class="hidden success">Your password has been changed. Go back to the Vault X app and sign in with your new password.</p>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  var client = supabase.createClient(
+    "https://iilsbousebrgkmsimucq.supabase.co",
+    "sb_publishable_Qi1YZXJNCbiDSTs0pn3fQA_MKai5qNX"
+  );
+
+  var statusEl = document.getElementById("status");
+  var invalidEl = document.getElementById("invalid");
+  var formEl = document.getElementById("reset-form");
+  var doneEl = document.getElementById("done");
+  var formErrorEl = document.getElementById("form-error");
+  var submitEl = document.getElementById("submit");
+  var recoveryReady = false;
+
+  function showForm() {
+    if (recoveryReady) return;
+    recoveryReady = true;
+    statusEl.classList.add("hidden");
+    invalidEl.classList.add("hidden");
+    formEl.classList.remove("hidden");
+  }
+
+  function showInvalid() {
+    if (recoveryReady) return;
+    statusEl.classList.add("hidden");
+    formEl.classList.add("hidden");
+    invalidEl.classList.remove("hidden");
+  }
+
+  // Supabase parses the recovery tokens from the URL automatically and
+  // fires a PASSWORD_RECOVERY event once the recovery session exists.
+  client.auth.onAuthStateChange(function (event, session) {
+    if (event === "PASSWORD_RECOVERY" && session) {
+      showForm();
+    }
+  });
+
+  // Also check for an already-established recovery session on load.
+  client.auth.getSession().then(function (result) {
+    if (result.data && result.data.session) {
+      showForm();
+    }
+  });
+
+  // If no recovery session appears shortly after load, the link is bad.
+  setTimeout(function () {
+    if (!recoveryReady) {
+      client.auth.getSession().then(function (result) {
+        if (result.data && result.data.session) {
+          showForm();
+        } else {
+          showInvalid();
+        }
+      });
+    }
+  }, 2500);
+
+  formEl.addEventListener("submit", function (e) {
+    e.preventDefault();
+    formErrorEl.classList.add("hidden");
+    var password = document.getElementById("password").value;
+    var confirm = document.getElementById("confirm").value;
+    if (!password) {
+      formErrorEl.textContent = "Please enter a new password.";
+      formErrorEl.classList.remove("hidden");
+      return;
+    }
+    if (password !== confirm) {
+      formErrorEl.textContent = "The two passwords do not match.";
+      formErrorEl.classList.remove("hidden");
+      return;
+    }
+    submitEl.disabled = true;
+    submitEl.textContent = "Saving…";
+    client.auth.updateUser({ password: password }).then(function (result) {
+      if (result.error) {
+        formErrorEl.textContent = result.error.message;
+        formErrorEl.classList.remove("hidden");
+        submitEl.disabled = false;
+        submitEl.textContent = "Set new password";
+        return;
+      }
+      formEl.classList.add("hidden");
+      doneEl.classList.remove("hidden");
+    });
+  });
+</script>
+</body>
+</html>
